@@ -1,7 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
 import { TemplateData } from "../components/Step1Template";
 
 export interface GenerationResult {
@@ -16,6 +14,13 @@ export async function generateOptimizedCV(
   currentCvPdfBase64: string | null,
   jobDescription: string,
 ): Promise<GenerationResult> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === "undefined") {
+    throw new Error("Gemini API key is missing. Please add GEMINI_API_KEY to your Vercel environment variables and redeploy.");
+  }
+  
+  const ai = new GoogleGenAI({ apiKey });
+
   const prompt = `
 You are an expert ATS-optimization specialist and web developer.
 Your task is to generate a NEW CV optimized for a specific job, using the EXACT HTML/CSS format from a provided template.
