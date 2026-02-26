@@ -1,0 +1,5 @@
+{
+  "name": "CV Matcher",
+  "description": "Analyzes a template CV, current CV, and job description to generate an ATS-optimized CV.",
+  "requestFramePermissions": []
+}
