@@ -18,7 +18,83 @@ interface Props {
 export default function Step5Result({ result, onRestart }: Props) {
   const [viewMode, setViewMode] = useState<"preview" | "code">("preview");
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isGeneratingWord, setIsGeneratingWord] = useState(false);
+
+  const getResponsiveHtml = () => {
+    let html = result.htmlContent;
+    
+    // Inject viewport meta if missing
+    if (!html.includes('viewport')) {
+      if (html.includes('<head>')) {
+        html = html.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">');
+      } else if (html.includes('<html>')) {
+        html = html.replace('<html>', '<html>\n<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">\n</head>');
+      } else {
+        html = '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">\n</head>\n' + html;
+      }
+    }
+
+    // Inject mobile-friendly CSS
+    const mobileCss = `
+      <style>
+        /* Mobile Preview Optimizations */
+        @media screen and (max-width: 768px) {
+          html, body {
+            width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 12px !important;
+            overflow-x: hidden !important;
+            box-sizing: border-box !important;
+          }
+          
+          /* Force all elements to respect container width */
+          * {
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+          }
+
+          /* Increase base font sizes for readability */
+          body, p, li, span, div, td, th, a {
+            font-size: 18px !important;
+            line-height: 1.6 !important;
+          }
+          
+          h1 { font-size: 28px !important; line-height: 1.3 !important; margin-bottom: 12px !important; }
+          h2 { font-size: 24px !important; line-height: 1.3 !important; margin-bottom: 10px !important; }
+          h3 { font-size: 20px !important; line-height: 1.3 !important; margin-bottom: 8px !important; }
+
+          /* Convert multi-column layouts to single column */
+          table { display: block !important; width: 100% !important; }
+          thead { display: none !important; }
+          tbody, tr, td, th { display: block !important; width: 100% !important; text-align: left !important; }
+          
+          .flex, .grid, [style*="display: flex"], [style*="display: grid"] {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+            gap: 12px !important;
+          }
+          
+          /* Adjust margins and padding for mobile */
+          section, div {
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+          }
+        }
+      </style>
+    `;
+
+    if (html.includes('</head>')) {
+      return html.replace('</head>', mobileCss + '</head>');
+    } else if (html.includes('<body>')) {
+      return html.replace('<body>', mobileCss + '<body>');
+    }
+    return mobileCss + html;
+  };
 
   const handleDownloadHtml = () => {
     const blob = new Blob([result.htmlContent], { type: "text/html" });
@@ -32,73 +108,110 @@ export default function Step5Result({ result, onRestart }: Props) {
     URL.revokeObjectURL(url);
   };
 
-  const handleDownloadPdf = async () => {
-    setIsGeneratingPdf(true);
+  const handleDownloadWord = () => {
+    setIsGeneratingWord(true);
     try {
-      // Create a hidden iframe to render the HTML properly with its own isolated styles
-      const iframe = document.createElement("iframe");
-      iframe.style.position = "absolute";
-      iframe.style.top = "-9999px";
-      iframe.style.left = "-9999px";
-      // Use a standard A4 width in pixels (approx 794px at 96 DPI)
-      iframe.style.width = "794px";
-      iframe.style.height = "2000px"; // Large initial height
-      iframe.style.border = "none";
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(result.htmlContent, 'text/html');
 
-      document.body.appendChild(iframe);
+      // Add Word XML namespaces to html tag
+      doc.documentElement.setAttribute('xmlns:o', 'urn:schemas-microsoft-com:office:office');
+      doc.documentElement.setAttribute('xmlns:w', 'urn:schemas-microsoft-com:office:word');
+      doc.documentElement.setAttribute('xmlns', 'http://www.w3.org/TR/REC-html40');
 
-      const doc = iframe.contentWindow?.document || iframe.contentDocument;
-      if (!doc) throw new Error("Could not access iframe document");
+      // Ensure meta charset exists
+      if (!doc.querySelector('meta[charset]')) {
+        const meta = doc.createElement('meta');
+        meta.setAttribute('charset', 'utf-8');
+        doc.head.insertBefore(meta, doc.head.firstChild);
+      }
 
-      doc.open();
-      doc.write(result.htmlContent);
-      doc.close();
+      // Style existing links so Word recognizes them
+      const links = doc.querySelectorAll('a');
+      links.forEach(link => {
+        if (!link.style.color) link.style.color = '#0563C1';
+        if (!link.style.textDecoration) link.style.textDecoration = 'underline';
+      });
 
-      // Wait for images, fonts, and layout to render completely
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Find all text nodes to auto-linkify plain text emails and URLs
+      const walk = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null);
+      let node;
+      const textNodes: Node[] = [];
+      while ((node = walk.nextNode())) {
+        if (
+          node.parentNode &&
+          node.parentNode.nodeName !== 'A' &&
+          node.parentNode.nodeName !== 'STYLE' &&
+          node.parentNode.nodeName !== 'SCRIPT'
+        ) {
+          textNodes.push(node);
+        }
+      }
 
-      // Ensure body has correct dimensions for capturing
-      doc.body.style.width = "794px"; // Match iframe width
-      doc.body.style.margin = "0";
-      doc.body.style.padding = "0";
-      // Force background color to white to prevent transparent backgrounds
-      doc.body.style.backgroundColor = "#ffffff";
+      const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/g;
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      const nakedUrlRegex = /(www\.[^\s]+|linkedin\.com\/in\/[^\s]+|github\.com\/[^\s]+)/g;
+
+      textNodes.forEach(textNode => {
+        let text = textNode.nodeValue || '';
+        
+        const hasEmail = emailRegex.test(text);
+        const hasUrl = urlRegex.test(text);
+        const hasNakedUrl = nakedUrlRegex.test(text);
+
+        if (hasEmail || hasUrl || hasNakedUrl) {
+          // Reset regex state
+          emailRegex.lastIndex = 0;
+          urlRegex.lastIndex = 0;
+          nakedUrlRegex.lastIndex = 0;
+
+          const escapeHtml = (unsafe: string) => {
+            return unsafe
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;")
+                 .replace(/'/g, "&#039;");
+          };
+          
+          let safeText = escapeHtml(text);
+          
+          if (hasEmail) {
+            safeText = safeText.replace(emailRegex, '<a href="mailto:$1" style="color:#0563C1;text-decoration:underline;">$1</a>');
+          }
+          if (hasUrl) {
+            safeText = safeText.replace(urlRegex, '<a href="$1" style="color:#0563C1;text-decoration:underline;">$1</a>');
+          } else if (hasNakedUrl) {
+            safeText = safeText.replace(nakedUrlRegex, '<a href="https://$1" style="color:#0563C1;text-decoration:underline;">$1</a>');
+          }
+
+          const span = doc.createElement('span');
+          span.innerHTML = safeText;
+          if (textNode.parentNode) {
+            textNode.parentNode.replaceChild(span, textNode);
+          }
+        }
+      });
+
+      const sourceHTML = doc.documentElement.outerHTML;
       
-      // Calculate exact height needed
-      const scrollHeight = doc.body.scrollHeight;
-      iframe.style.height = `${scrollHeight}px`;
-
-      const opt = {
-        margin: 0,
-        filename: "optimized-cv.pdf",
-        image: { type: "jpeg" as const, quality: 1 },
-        enableLinks: true,
-        html2canvas: {
-          scale: 2, // Higher scale for better resolution
-          useCORS: true,
-          windowWidth: 794, // Match iframe width
-          window: iframe.contentWindow, // Crucial: use iframe's window context for styles
-          scrollY: 0,
-          scrollX: 0,
-          logging: false,
-        },
-        jsPDF: {
-          unit: "mm" as const,
-          format: "a4",
-          orientation: "portrait" as const,
-        },
-        pagebreak: { mode: ["avoid-all", "css", "legacy"] },
-      };
-
-      await html2pdf().set(opt).from(doc.body).save();
-
-      // Clean up
-      document.body.removeChild(iframe);
+      const blob = new Blob(['\ufeff', sourceHTML], {
+        type: 'application/msword'
+      });
+      
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "optimized-cv.doc";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("Failed to generate PDF:", error);
-      alert("Failed to generate PDF. Please try downloading as HTML instead.");
+      console.error("Failed to generate Word document:", error);
+      alert("Failed to generate Word document. Please try downloading as HTML instead.");
     } finally {
-      setIsGeneratingPdf(false);
+      setIsGeneratingWord(false);
     }
   };
 
@@ -131,16 +244,16 @@ export default function Step5Result({ result, onRestart }: Props) {
             HTML
           </button>
           <button
-            onClick={handleDownloadPdf}
-            disabled={isGeneratingPdf}
+            onClick={handleDownloadWord}
+            disabled={isGeneratingWord}
             className="w-full md:w-auto px-5 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl text-sm font-medium hover:from-indigo-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/25"
           >
-            {isGeneratingPdf ? (
+            {isGeneratingWord ? (
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
             ) : (
               <FileDown className="w-3.5 h-3.5" />
             )}
-            Download PDF
+            Download Word
           </button>
         </div>
       </div>
@@ -186,7 +299,7 @@ export default function Step5Result({ result, onRestart }: Props) {
           </div>
         </div>
 
-        <div className="lg:col-span-2 flex flex-col h-[500px] lg:h-full lg:min-h-0">
+        <div className="lg:col-span-2 flex flex-col h-[70vh] min-h-[600px] lg:h-full lg:min-h-0">
           <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(79,70,229,0.06)] border border-indigo-100 flex flex-col h-full overflow-hidden">
             <div className="flex items-center justify-between p-3 sm:p-4 border-b border-indigo-100 bg-zinc-50/50 shrink-0">
               <h3 className="text-sm font-bold text-zinc-800 tracking-tight">
@@ -221,7 +334,7 @@ export default function Step5Result({ result, onRestart }: Props) {
             <div className="flex-1 bg-zinc-100/50 relative min-h-0">
               {viewMode === "preview" ? (
                 <iframe
-                  srcDoc={result.htmlContent}
+                  srcDoc={getResponsiveHtml()}
                   title="CV Preview"
                   className="absolute inset-0 w-full h-full border-0 bg-white"
                   sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"

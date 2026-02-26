@@ -34,6 +34,7 @@ CRITICAL REQUIREMENTS FOR PDF FIDELITY:
 6. Maintain all spacing (margins, padding, line heights) exactly as in the template.
 7. Ensure email addresses and LinkedIn URLs are wrapped in valid <a> tags with href attributes (e.g., <a href="mailto:...">, <a href="https://...">).
 8. The final output must be a complete, valid HTML document starting with <!DOCTYPE html> and including <html>, <head>, and <body> tags.
+9. CRITICAL FOR MOBILE: Include <meta name="viewport" content="width=device-width, initial-scale=1.0"> in the <head>. Ensure the CSS is fully responsive (e.g., use max-width: 800px, width: 100%, fluid typography, and media queries). On mobile screens (max-width: 768px), increase font sizes (base 15px-16px), stack columns vertically, and ensure no horizontal scrolling is required.
 
 INPUTS:
 1. Template CV: The exact structure and styling you MUST use. If it's a PDF or image, extract its layout and styling to recreate it in HTML/CSS. If it's HTML, use it directly.

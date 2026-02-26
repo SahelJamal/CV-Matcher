@@ -114,7 +114,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6 w-full overflow-hidden flex flex-col">
+      <main className="flex-1 max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6 w-full overflow-y-auto flex flex-col">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentStep}
@@ -122,7 +122,7 @@ export default function App() {
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
             exit={{ opacity: 0, y: -10, filter: "blur(4px)" }}
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-            className="w-full h-full flex justify-center items-center"
+            className="w-full min-h-full flex flex-col justify-start items-center"
           >
             {currentStep === 1 && <Step1Template onNext={handleNextStep1} />}
             {currentStep === 2 && (
