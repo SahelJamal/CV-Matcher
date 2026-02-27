@@ -19,8 +19,16 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  // Check if config is missing from all possible sources
+  const isConfigMissing = !import.meta.env.VITE_FIREBASE_API_KEY && 
+                         !(typeof process !== 'undefined' && process.env.VITE_FIREBASE_API_KEY);
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isConfigMissing) {
+      setError("Firebase configuration is missing. Please add your environment variables to Vercel and redeploy.");
+      return;
+    }
     setError("");
     setMessage("");
     setLoading(true);
@@ -69,9 +77,22 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-start gap-3 text-rose-600 text-sm">
-              <AlertCircle className="w-5 h-5 shrink-0" />
-              <span>{error}</span>
+            <div className="mb-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl flex flex-col gap-2 text-rose-600 text-sm">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <span className="font-medium">{error}</span>
+              </div>
+              {isConfigMissing && (
+                <div className="mt-2 p-3 bg-white/50 rounded-xl text-xs border border-rose-200">
+                  <p className="font-bold mb-1 uppercase tracking-wider">Required Keys:</p>
+                  <ul className="list-disc list-inside space-y-1 opacity-80">
+                    <li>VITE_FIREBASE_API_KEY</li>
+                    <li>VITE_FIREBASE_PROJECT_ID</li>
+                    <li>...and 4 others</li>
+                  </ul>
+                  <p className="mt-2 italic">Check Vercel Settings & Redeploy</p>
+                </div>
+              )}
             </div>
           )}
 
