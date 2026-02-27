@@ -15,8 +15,8 @@ export async function generateOptimizedCV(
   jobDescription: string,
 ): Promise<GenerationResult> {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === "undefined") {
-    throw new Error("Gemini API key is missing. Please add GEMINI_API_KEY to your Vercel environment variables and redeploy.");
+  if (!apiKey || apiKey === "undefined" || apiKey === "") {
+    throw new Error("Gemini API key is missing. 1. Add GEMINI_API_KEY to Vercel Environment Variables. 2. REDEPLOY your project on Vercel to bake the key into the build.");
   }
   
   const ai = new GoogleGenAI({ apiKey });
@@ -90,7 +90,7 @@ IMPORTANT: The \`htmlContent\` field in your response MUST be a complete, valid 
   parts.push({ text: `\n\n--- JOB DESCRIPTION ---\n${jobDescription}` });
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
+    model: "gemini-3-flash-preview",
     contents: { parts },
     config: {
       responseMimeType: "application/json",
