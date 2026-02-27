@@ -5,8 +5,12 @@ import Step2CurrentCV from "./components/Step2CurrentCV";
 import Step3JobDescription from "./components/Step3JobDescription";
 import Step4Review from "./components/Step4Review";
 import Step5Result from "./components/Step5Result";
+import LoginPage from "./components/LoginPage";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { auth } from "./firebase";
+import { signOut } from "firebase/auth";
 import { GenerationResult } from "./services/geminiService";
-import { Sparkles } from "lucide-react";
+import { Sparkles, LogOut, User as UserIcon } from "lucide-react";
 
 const steps = [
   { id: 1, title: "Template" },
@@ -17,6 +21,15 @@ const steps = [
 ];
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
+
+function AppContent() {
+  const { user, loading } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [templateData, setTemplateData] = useState<TemplateData | null>(null);
   const [currentCvText, setCurrentCvText] = useState("");
@@ -60,6 +73,32 @@ export default function App() {
     setResult(null);
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      handleRestart();
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-zinc-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-blue-500 rounded-2xl flex items-center justify-center animate-pulse">
+            <Sparkles className="w-6 h-6 text-white" />
+          </div>
+          <p className="text-zinc-400 text-sm font-medium">Loading session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
   return (
     <div className="h-[100dvh] overflow-hidden bg-zinc-50 font-sans text-zinc-700 selection:bg-indigo-500 selection:text-white flex flex-col">
       <header className="bg-white/80 backdrop-blur-md border-b border-indigo-100 shrink-0 z-10">
@@ -76,34 +115,54 @@ export default function App() {
             </h1>
           </div>
 
-          <div className="hidden md:flex items-center space-x-2">
-            {steps.map((step, index) => {
-              const isActive = currentStep === step.id;
-              const isCompleted = currentStep > step.id;
+          <div className="flex items-center gap-4">
+            <div className="hidden md:flex items-center space-x-2">
+              {steps.map((step, index) => {
+                const isActive = currentStep === step.id;
+                const isCompleted = currentStep > step.id;
 
-              return (
-                <div key={step.id} className="flex items-center">
-                  <div
-                    className={`flex items-center justify-center h-7 px-3 rounded-full text-xs font-semibold transition-all duration-300 ${
-                      isActive
-                        ? "bg-gradient-to-r from-indigo-500 to-blue-500 text-white shadow-md shadow-indigo-500/20"
-                        : isCompleted
-                          ? "bg-indigo-100 text-indigo-700"
-                          : "text-zinc-400"
-                    }`}
-                  >
-                    {step.id}. {step.title}
-                  </div>
-                  {index < steps.length - 1 && (
+                return (
+                  <div key={step.id} className="flex items-center">
                     <div
-                      className={`w-3 h-[1px] mx-1 transition-colors duration-300 ${
-                        isCompleted ? "bg-indigo-300" : "bg-zinc-200"
+                      className={`flex items-center justify-center h-7 px-3 rounded-full text-xs font-semibold transition-all duration-300 ${
+                        isActive
+                          ? "bg-gradient-to-r from-indigo-500 to-blue-500 text-white shadow-md shadow-indigo-500/20"
+                          : isCompleted
+                            ? "bg-indigo-100 text-indigo-700"
+                            : "text-zinc-400"
                       }`}
-                    />
-                  )}
-                </div>
-              );
-            })}
+                    >
+                      {step.id}. {step.title}
+                    </div>
+                    {index < steps.length - 1 && (
+                      <div
+                        className={`w-3 h-[1px] mx-1 transition-colors duration-300 ${
+                          isCompleted ? "bg-indigo-300" : "bg-zinc-200"
+                        }`}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="h-6 w-[1px] bg-zinc-200 hidden md:block" />
+
+            <div className="flex items-center gap-3">
+              <div className="flex flex-col items-end hidden sm:flex">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest leading-none mb-1">Authenticated</span>
+                <span className="text-xs font-semibold text-zinc-700 truncate max-w-[120px]">
+                  {user.displayName || user.email}
+                </span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="p-2 text-zinc-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           <div className="md:hidden flex items-center">
