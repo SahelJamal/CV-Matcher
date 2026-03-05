@@ -19,9 +19,8 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  // Check if config is missing from all possible sources
-  const isConfigMissing = !import.meta.env.VITE_FIREBASE_API_KEY && 
-                         !(typeof process !== 'undefined' && process.env.VITE_FIREBASE_API_KEY);
+  // Check if config is missing
+  const isConfigMissing = !import.meta.env.VITE_FIREBASE_API_KEY;
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
